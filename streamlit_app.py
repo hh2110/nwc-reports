@@ -1,38 +1,41 @@
-from collections import namedtuple
-import altair as alt
-import math
-import pandas as pd
+import io
+import traceback
+
 import streamlit as st
 
-"""
-# Welcome to Streamlit!
+from get_report import Report, get_df_from_excel
+st.set_page_config(layout="wide")
 
-Edit `/streamlit_app.py` to customize this app to your heart's desire :heart:
+with st.echo(code_location="below"):
+    uploaded_file = st.file_uploader("Upload an Excel file", type="xlsx")
 
-If you have any questions, checkout our [documentation](https://docs.streamlit.io) and [community
-forums](https://discuss.streamlit.io).
+    if uploaded_file is not None:
+        try:
+            df = get_df_from_excel(uploaded_file)
+            st.dataframe(df)
+            fig = Report.make_plot(df)
 
-In the meantime, below is an example of what you can do with just a few lines of code:
-"""
+            # Create an in-memory buffer
+            buffer = io.BytesIO()
 
+            # Save the figure as a pdf to the buffer
+            fig.write_image(file=buffer, format="pdf")
 
-with st.echo(code_location='below'):
-    total_points = st.slider("Number of points in spiral", 1, 5000, 2000)
-    num_turns = st.slider("Number of turns in spiral", 1, 100, 9)
+            # Download the pdf from the buffer
+            st.download_button(
+                label="Download PDF",
+                data=buffer,
+                file_name="figure.pdf",
+                mime="application/pdf",
+            )
 
-    Point = namedtuple('Point', 'x y')
-    data = []
+            st.plotly_chart(fig, use_container_width=True)
 
-    points_per_turn = total_points / num_turns
-
-    for curr_point_num in range(total_points):
-        curr_turn, i = divmod(curr_point_num, points_per_turn)
-        angle = (curr_turn + 1) * 2 * math.pi * i / points_per_turn
-        radius = curr_point_num / total_points
-        x = radius * math.cos(angle)
-        y = radius * math.sin(angle)
-        data.append(Point(x, y))
-
-    st.altair_chart(alt.Chart(pd.DataFrame(data), height=500, width=500)
-        .mark_circle(color='#0068c9', opacity=0.5)
-        .encode(x='x:Q', y='y:Q'))
+        except Exception as e:
+            st.error(
+                f"An error occurred: {str(e)}\n\n"
+                f"{'-'*60}\n"
+                f"{traceback.format_exc()}\n"
+                f"{'-'*60}"
+            )
+            st.stop()
